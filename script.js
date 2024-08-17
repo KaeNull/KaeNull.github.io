@@ -3,7 +3,7 @@ function createShader(gl, sourceCode, type) {
   gl.shaderSource(shader, sourceCode);
   gl.compileShader(shader);
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    console.error(gl.getShaderInfoLog(shader));
+    console.error('Shader compile error:', gl.getShaderInfoLog(shader));
     gl.deleteShader(shader);
     return null;
   }
@@ -14,12 +14,17 @@ function createProgram(gl, vertexShaderSource, fragmentShaderSource) {
   const vertexShader = createShader(gl, vertexShaderSource, gl.VERTEX_SHADER);
   const fragmentShader = createShader(gl, fragmentShaderSource, gl.FRAGMENT_SHADER);
 
+  if (!vertexShader || !fragmentShader) {
+    return null;
+  }
+
   const program = gl.createProgram();
   gl.attachShader(program, vertexShader);
   gl.attachShader(program, fragmentShader);
   gl.linkProgram(program);
+
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    console.error(gl.getProgramInfoLog(program));
+    console.error('Program link error:', gl.getProgramInfoLog(program));
     return null;
   }
   return program;
@@ -27,14 +32,17 @@ function createProgram(gl, vertexShaderSource, fragmentShaderSource) {
 
 const vertexShaderSource = `
   attribute vec3 coordinates;
+  uniform mat4 modelViewMatrix;
+  uniform mat4 projectionMatrix;
   void main(void) {
-    gl_Position = vec4(coordinates, 1.0);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(coordinates, 1.0);
   }
 `;
 
 const fragmentShaderSource = `
+  precision mediump float;
   void main(void) {
-    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); // Color rojo
+    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); // Red color
   }
 `;
 
@@ -44,9 +52,13 @@ function loadLocalJSON(file) {
     xhr.open('GET', file, true);
     xhr.onload = function () {
       if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(JSON.parse(xhr.responseText));
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch (e) {
+          reject(new Error('Failed to parse JSON'));
+        }
       } else {
-        reject(new Error('Failed to load file'));
+        reject(new Error('Failed to load file: ' + xhr.statusText));
       }
     };
     xhr.onerror = function () {
@@ -56,21 +68,43 @@ function loadLocalJSON(file) {
   });
 }
 
+function createMatrix() {
+  // Create a perspective projection matrix
+  const fieldOfView = Math.PI / 4; // 45 degrees
+  const aspectRatio = canvas.width / canvas.height;
+  const zNear = 0.1;
+  const zFar = 100.0;
+  const projectionMatrix = mat4.create();
+  mat4.perspective(projectionMatrix, fieldOfView, aspectRatio, zNear, zFar);
+  return projectionMatrix;
+}
+
+function updateModelViewMatrix() {
+  // Update model-view matrix to rotate the scene
+  const modelViewMatrix = mat4.create();
+  mat4.translate(modelViewMatrix, modelViewMatrix, [0, 0, -6]); // Move back from the camera
+  mat4.rotateX(modelViewMatrix, modelViewMatrix, rotationX);
+  mat4.rotateY(modelViewMatrix, modelViewMatrix, rotationY);
+  return modelViewMatrix;
+}
+
 async function main() {
   const canvas = document.getElementById('webgl-canvas');
   const gl = canvas.getContext('webgl');
-
+  
   if (!gl) {
     console.error('WebGL not supported');
     return;
   }
 
   const program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
+  if (!program) return;
+
   gl.useProgram(program);
 
   try {
     const data = await loadLocalJSON('data.json');
-
+    
     const vertices = [];
     for (const point of data) {
       vertices.push(point.x, point.y, point.z);
@@ -84,12 +118,33 @@ async function main() {
     gl.vertexAttribPointer(coord, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(coord);
 
-    gl.clearColor(0.0, 0.0, 0.0, 1.0); // Fondo negro
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    const modelViewMatrixLocation = gl.getUniformLocation(program, 'modelViewMatrix');
+    const projectionMatrixLocation = gl.getUniformLocation(program, 'projectionMatrix');
+    
+    const projectionMatrix = createMatrix();
+    gl.uniformMatrix4fv(projectionMatrixLocation, false, projectionMatrix);
 
-    gl.drawArrays(gl.POINTS, 0, vertices.length / 3);
+    let rotationX = 0;
+    let rotationY = 0;
+
+    function animate() {
+      rotationX += 0.01;
+      rotationY += 0.01;
+
+      const modelViewMatrix = updateModelViewMatrix();
+      gl.uniformMatrix4fv(modelViewMatrixLocation, false, modelViewMatrix);
+
+      gl.clearColor(0.0, 0.0, 0.0, 1.0); // Black background
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+      gl.drawArrays(gl.POINTS, 0, vertices.length / 3);
+
+      requestAnimationFrame(animate);
+    }
+
+    animate();
   } catch (error) {
-    console.error(error);
+    console.error('Error in main function:', error);
   }
 }
 
