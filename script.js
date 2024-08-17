@@ -1,3 +1,4 @@
+// Function to create a shader
 function createShader(gl, sourceCode, type) {
   const shader = gl.createShader(type);
   gl.shaderSource(shader, sourceCode);
@@ -10,6 +11,7 @@ function createShader(gl, sourceCode, type) {
   return shader;
 }
 
+// Function to create a WebGL program
 function createProgram(gl, vertexShaderSource, fragmentShaderSource) {
   const vertexShader = createShader(gl, vertexShaderSource, gl.VERTEX_SHADER);
   const fragmentShader = createShader(gl, fragmentShaderSource, gl.FRAGMENT_SHADER);
@@ -30,6 +32,7 @@ function createProgram(gl, vertexShaderSource, fragmentShaderSource) {
   return program;
 }
 
+// Vertex shader source code
 const vertexShaderSource = `
   attribute vec3 coordinates;
   uniform mat4 modelViewMatrix;
@@ -39,6 +42,7 @@ const vertexShaderSource = `
   }
 `;
 
+// Fragment shader source code
 const fragmentShaderSource = `
   precision mediump float;
   void main(void) {
@@ -46,6 +50,7 @@ const fragmentShaderSource = `
   }
 `;
 
+// Function to load local JSON data
 function loadLocalJSON(file) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -68,12 +73,14 @@ function loadLocalJSON(file) {
   });
 }
 
+// Function to create the projection matrix
 function createProjectionMatrix(canvas) {
   const projectionMatrix = mat4.create();
   mat4.perspective(projectionMatrix, Math.PI / 4, canvas.width / canvas.height, 0.1, 100.0);
   return projectionMatrix;
 }
 
+// Function to create the model-view matrix
 function createModelViewMatrix(rotationX, rotationY) {
   const modelViewMatrix = mat4.create();
   mat4.translate(modelViewMatrix, modelViewMatrix, [0, 0, -6]); // Move back from the camera
@@ -82,6 +89,7 @@ function createModelViewMatrix(rotationX, rotationY) {
   return modelViewMatrix;
 }
 
+// Main function
 async function main() {
   const canvas = document.getElementById('webgl-canvas');
   const gl = canvas.getContext('webgl');
@@ -118,7 +126,7 @@ async function main() {
     const modelViewMatrixLocation = gl.getUniformLocation(program, 'modelViewMatrix');
     const projectionMatrixLocation = gl.getUniformLocation(program, 'projectionMatrix');
     
-    // Ensure canvas size is used for the projection matrix
+    // Create projection matrix and set it as a uniform
     const projectionMatrix = createProjectionMatrix(canvas);
     gl.uniformMatrix4fv(projectionMatrixLocation, false, projectionMatrix);
 
