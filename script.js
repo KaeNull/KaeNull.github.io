@@ -50,29 +50,6 @@ const fragmentShaderSource = `
   }
 `;
 
-// Function to load local JSON data
-function loadLocalJSON(file) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', file, true);
-    xhr.onload = function () {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          resolve(JSON.parse(xhr.responseText));
-        } catch (e) {
-          reject(new Error('Failed to parse JSON'));
-        }
-      } else {
-        reject(new Error('Failed to load file: ' + xhr.statusText));
-      }
-    };
-    xhr.onerror = function () {
-      reject(new Error('Network error'));
-    };
-    xhr.send();
-  });
-}
-
 // Function to create the projection matrix
 function createProjectionMatrix(canvas) {
   const projectionMatrix = mat4.create();
@@ -86,6 +63,20 @@ function createModelViewMatrix(rotationY) {
   mat4.translate(modelViewMatrix, modelViewMatrix, [0, 0, -6]); // Move back from the camera
   mat4.rotateY(modelViewMatrix, modelViewMatrix, rotationY); // Rotate only around the Y-axis
   return modelViewMatrix;
+}
+
+// Function to generate the grid points for a cartesian plane
+function createGridVertices(size, step) {
+  const vertices = [];
+  for (let i = -size; i <= size; i += step) {
+    // Vertical lines
+    vertices.push(i, -size, 0);
+    vertices.push(i, size, 0);
+    // Horizontal lines
+    vertices.push(-size, i, 0);
+    vertices.push(size, i, 0);
+  }
+  return vertices;
 }
 
 // Main function
@@ -106,49 +97,40 @@ async function main() {
 
   gl.useProgram(program);
 
-  try {
-    const data = await loadLocalJSON('data.json');
-    
-    const vertices = [];
-    for (const point of data) {
-      vertices.push(point.x, point.y, point.z);
-    }
+  // Generate grid vertices
+  const vertices = createGridVertices(10, 1); // Size of the grid and step
+  const vertexBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
 
-    const vertexBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+  const coord = gl.getAttribLocation(program, 'coordinates');
+  gl.vertexAttribPointer(coord, 3, gl.FLOAT, false, 0, 0);
+  gl.enableVertexAttribArray(coord);
 
-    const coord = gl.getAttribLocation(program, 'coordinates');
-    gl.vertexAttribPointer(coord, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(coord);
+  const modelViewMatrixLocation = gl.getUniformLocation(program, 'modelViewMatrix');
+  const projectionMatrixLocation = gl.getUniformLocation(program, 'projectionMatrix');
+  
+  // Create projection matrix and set it as a uniform
+  const projectionMatrix = createProjectionMatrix(canvas);
+  gl.uniformMatrix4fv(projectionMatrixLocation, false, projectionMatrix);
 
-    const modelViewMatrixLocation = gl.getUniformLocation(program, 'modelViewMatrix');
-    const projectionMatrixLocation = gl.getUniformLocation(program, 'projectionMatrix');
-    
-    // Create projection matrix and set it as a uniform
-    const projectionMatrix = createProjectionMatrix(canvas);
-    gl.uniformMatrix4fv(projectionMatrixLocation, false, projectionMatrix);
+  let rotationY = 0;
 
-    let rotationY = 0;
+  function animate() {
+    rotationY += 0.01;
 
-    function animate() {
-      rotationY += 0.01;
+    const modelViewMatrix = createModelViewMatrix(rotationY);
+    gl.uniformMatrix4fv(modelViewMatrixLocation, false, modelViewMatrix);
 
-      const modelViewMatrix = createModelViewMatrix(rotationY);
-      gl.uniformMatrix4fv(modelViewMatrixLocation, false, modelViewMatrix);
+    gl.clearColor(0.0, 0.0, 0.0, 1.0); // Black background
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-      gl.clearColor(0.0, 0.0, 0.0, 1.0); // Black background
-      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.drawArrays(gl.LINES, 0, vertices.length / 3);
 
-      gl.drawArrays(gl.POINTS, 0, vertices.length / 3);
-
-      requestAnimationFrame(animate);
-    }
-
-    animate();
-  } catch (error) {
-    console.error('Error in main function:', error);
+    requestAnimationFrame(animate);
   }
+
+  animate();
 }
 
 main();
