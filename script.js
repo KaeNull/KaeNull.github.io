@@ -118,6 +118,7 @@ async function main() {
     const modelViewMatrixLocation = gl.getUniformLocation(program, 'modelViewMatrix');
     const projectionMatrixLocation = gl.getUniformLocation(program, 'projectionMatrix');
     
+    // Ensure canvas size is used for the projection matrix
     const projectionMatrix = createProjectionMatrix(canvas);
     gl.uniformMatrix4fv(projectionMatrixLocation, false, projectionMatrix);
 
