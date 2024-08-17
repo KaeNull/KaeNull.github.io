@@ -46,9 +46,32 @@ const vertexShaderSource = `
 const fragmentShaderSource = `
   precision mediump float;
   void main(void) {
-    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0); // Red color
+    gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0); // Green color
   }
 `;
+
+// Function to load local JSON data
+function loadLocalJSON(file) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', file, true);
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch (e) {
+          reject(new Error('Failed to parse JSON'));
+        }
+      } else {
+        reject(new Error('Failed to load file: ' + xhr.statusText));
+      }
+    };
+    xhr.onerror = function () {
+      reject(new Error('Network error'));
+    };
+    xhr.send();
+  });
+}
 
 // Function to create the projection matrix
 function createProjectionMatrix(canvas) {
@@ -65,17 +88,28 @@ function createModelViewMatrix(rotationY) {
   return modelViewMatrix;
 }
 
-// Function to generate the grid points for a cartesian plane
-function createGridVertices(size, step) {
+// Function to generate grid vertices based on the data points
+function createGridVertices(data) {
   const vertices = [];
-  for (let i = -size; i <= size; i += step) {
-    // Vertical lines
-    vertices.push(i, -size, 0);
-    vertices.push(i, size, 0);
-    // Horizontal lines
-    vertices.push(-size, i, 0);
-    vertices.push(size, i, 0);
+  if (data.length === 0) return vertices;
+
+  // Determine min and max values for each axis
+  const minX = Math.min(...data.map(p => p.x));
+  const maxX = Math.max(...data.map(p => p.x));
+  const minY = Math.min(...data.map(p => p.y));
+  const maxY = Math.max(...data.map(p => p.y));
+
+  // Generate vertical and horizontal lines
+  const step = 1; // Change this step to increase or decrease line density
+  for (let x = Math.floor(minX); x <= Math.ceil(maxX); x += step) {
+    vertices.push(x, minY, 0);
+    vertices.push(x, maxY, 0);
   }
+  for (let y = Math.floor(minY); y <= Math.ceil(maxY); y += step) {
+    vertices.push(minX, y, 0);
+    vertices.push(maxX, y, 0);
+  }
+
   return vertices;
 }
 
@@ -97,40 +131,46 @@ async function main() {
 
   gl.useProgram(program);
 
-  // Generate grid vertices
-  const vertices = createGridVertices(10, 1); // Size of the grid and step
-  const vertexBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+  try {
+    const data = await loadLocalJSON('data.json');
+    
+    // Generate grid vertices from the data
+    const vertices = createGridVertices(data);
+    const vertexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
 
-  const coord = gl.getAttribLocation(program, 'coordinates');
-  gl.vertexAttribPointer(coord, 3, gl.FLOAT, false, 0, 0);
-  gl.enableVertexAttribArray(coord);
+    const coord = gl.getAttribLocation(program, 'coordinates');
+    gl.vertexAttribPointer(coord, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(coord);
 
-  const modelViewMatrixLocation = gl.getUniformLocation(program, 'modelViewMatrix');
-  const projectionMatrixLocation = gl.getUniformLocation(program, 'projectionMatrix');
-  
-  // Create projection matrix and set it as a uniform
-  const projectionMatrix = createProjectionMatrix(canvas);
-  gl.uniformMatrix4fv(projectionMatrixLocation, false, projectionMatrix);
+    const modelViewMatrixLocation = gl.getUniformLocation(program, 'modelViewMatrix');
+    const projectionMatrixLocation = gl.getUniformLocation(program, 'projectionMatrix');
+    
+    // Create projection matrix and set it as a uniform
+    const projectionMatrix = createProjectionMatrix(canvas);
+    gl.uniformMatrix4fv(projectionMatrixLocation, false, projectionMatrix);
 
-  let rotationY = 0;
+    let rotationY = 0;
 
-  function animate() {
-    rotationY += 0.01;
+    function animate() {
+      rotationY += 0.01;
 
-    const modelViewMatrix = createModelViewMatrix(rotationY);
-    gl.uniformMatrix4fv(modelViewMatrixLocation, false, modelViewMatrix);
+      const modelViewMatrix = createModelViewMatrix(rotationY);
+      gl.uniformMatrix4fv(modelViewMatrixLocation, false, modelViewMatrix);
 
-    gl.clearColor(0.0, 0.0, 0.0, 1.0); // Black background
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      gl.clearColor(0.0, 0.0, 0.0, 1.0); // Black background
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    gl.drawArrays(gl.LINES, 0, vertices.length / 3);
+      gl.drawArrays(gl.LINES, 0, vertices.length / 3);
 
-    requestAnimationFrame(animate);
+      requestAnimationFrame(animate);
+    }
+
+    animate();
+  } catch (error) {
+    console.error('Error in main function:', error);
   }
-
-  animate();
 }
 
 main();
