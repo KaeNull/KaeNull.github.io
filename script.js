@@ -68,19 +68,13 @@ function loadLocalJSON(file) {
   });
 }
 
-function createMatrix() {
-  // Create a perspective projection matrix
-  const fieldOfView = Math.PI / 4; // 45 degrees
-  const aspectRatio = canvas.width / canvas.height;
-  const zNear = 0.1;
-  const zFar = 100.0;
+function createProjectionMatrix(canvas) {
   const projectionMatrix = mat4.create();
-  mat4.perspective(projectionMatrix, fieldOfView, aspectRatio, zNear, zFar);
+  mat4.perspective(projectionMatrix, Math.PI / 4, canvas.width / canvas.height, 0.1, 100.0);
   return projectionMatrix;
 }
 
-function updateModelViewMatrix() {
-  // Update model-view matrix to rotate the scene
+function createModelViewMatrix(rotationX, rotationY) {
   const modelViewMatrix = mat4.create();
   mat4.translate(modelViewMatrix, modelViewMatrix, [0, 0, -6]); // Move back from the camera
   mat4.rotateX(modelViewMatrix, modelViewMatrix, rotationX);
@@ -91,11 +85,14 @@ function updateModelViewMatrix() {
 async function main() {
   const canvas = document.getElementById('webgl-canvas');
   const gl = canvas.getContext('webgl');
-  
+
   if (!gl) {
     console.error('WebGL not supported');
     return;
   }
+
+  // Enable depth testing
+  gl.enable(gl.DEPTH_TEST);
 
   const program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
   if (!program) return;
@@ -121,7 +118,7 @@ async function main() {
     const modelViewMatrixLocation = gl.getUniformLocation(program, 'modelViewMatrix');
     const projectionMatrixLocation = gl.getUniformLocation(program, 'projectionMatrix');
     
-    const projectionMatrix = createMatrix();
+    const projectionMatrix = createProjectionMatrix(canvas);
     gl.uniformMatrix4fv(projectionMatrixLocation, false, projectionMatrix);
 
     let rotationX = 0;
@@ -131,7 +128,7 @@ async function main() {
       rotationX += 0.01;
       rotationY += 0.01;
 
-      const modelViewMatrix = updateModelViewMatrix();
+      const modelViewMatrix = createModelViewMatrix(rotationX, rotationY);
       gl.uniformMatrix4fv(modelViewMatrixLocation, false, modelViewMatrix);
 
       gl.clearColor(0.0, 0.0, 0.0, 1.0); // Black background
