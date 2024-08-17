@@ -80,12 +80,11 @@ function createProjectionMatrix(canvas) {
   return projectionMatrix;
 }
 
-// Function to create the model-view matrix
-function createModelViewMatrix(rotationX, rotationY) {
+// Function to create the model-view matrix with rotation only around the Y-axis
+function createModelViewMatrix(rotationY) {
   const modelViewMatrix = mat4.create();
   mat4.translate(modelViewMatrix, modelViewMatrix, [0, 0, -6]); // Move back from the camera
-  mat4.rotateX(modelViewMatrix, modelViewMatrix, rotationX);
-  mat4.rotateY(modelViewMatrix, modelViewMatrix, rotationY);
+  mat4.rotateY(modelViewMatrix, modelViewMatrix, rotationY); // Rotate only around the Y-axis
   return modelViewMatrix;
 }
 
@@ -130,14 +129,12 @@ async function main() {
     const projectionMatrix = createProjectionMatrix(canvas);
     gl.uniformMatrix4fv(projectionMatrixLocation, false, projectionMatrix);
 
-    let rotationX = 0;
     let rotationY = 0;
 
     function animate() {
-      rotationX += 0.01;
       rotationY += 0.01;
 
-      const modelViewMatrix = createModelViewMatrix(rotationX, rotationY);
+      const modelViewMatrix = createModelViewMatrix(rotationY);
       gl.uniformMatrix4fv(modelViewMatrixLocation, false, modelViewMatrix);
 
       gl.clearColor(0.0, 0.0, 0.0, 1.0); // Black background
